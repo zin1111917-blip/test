@@ -1,0 +1,11 @@
+失眠剧本社 / Insomnia Script Club
+
+本插件基于 StageDog 的 tavern_helper_template 开发（https://github.com/StageDog/tavern_helper_template），
+该模板以 PolyForm Noncommercial License 1.0.0 授权；本插件沿用同一许可证（见 LICENSE），可免费使用、修改、转发，不可商用。
+
+运行时用到的第三方库（不在本仓库里，由酒馆或 jsDelivr 提供）：
+- 酒馆 / 酒馆助手自带：Vue（MIT）、Vue Router（MIT）、jQuery（MIT）、lodash（MIT）、zod（MIT）、yaml（ISC）、toastr（MIT）
+- 运行时从 jsDelivr 加载：pinia（MIT）、klona（MIT）
+- 导入 PDF / Word 时才从 jsDelivr 加载：pdf.js（Apache-2.0）、mammoth（BSD-2-Clause）
+
+主题底图与封面图库的图片由用户提供，随本插件一起分发，许可同 LICENSE。

@@ -2,12 +2,12 @@
 // jsDelivr 对 @main 的地址缓存很久、刷新还会被限流，更新了也可能拿到旧版。
 // 这里每次先问 GitHub 最新一次提交的编号，再按编号去 jsDelivr 取插件：按编号的地址内容固定，不会是旧缓存。
 // 问不到（断网、被限流）就用上次记下的编号，再不行退回 @main。
-// jsDelivr 有几条线路，某条线路有时对大文件卡住不动（一直下不完）：一条超时就换下一条，下完了再执行，不会加载两份。
+// jsDelivr 有几条线路，某条线路有时对大文件卡住不动（一直下不完）：几秒没下完就加开下一条，先下完的那份执行，不会加载两份。
 const REPO = 'zin1111917-blip/test';
 const FILE = 'dist/insomnia/index.js';
 const KEY = 'insomnia-release-sha';
 const HOSTS = ['testingcf.jsdelivr.net', 'fastly.jsdelivr.net', 'cdn.jsdelivr.net', 'gcore.jsdelivr.net'];
-const TIMEOUT = 25000;
+const STAGGER = 6000;
 
 function remembered() {
   try {
@@ -38,25 +38,39 @@ async function latestSha() {
   return remembered();
 }
 
-/** 按顺序试每条线路，整个文件下完才算；超时或出错换下一条 */
-async function download(ref) {
-  for (const host of HOSTS) {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), TIMEOUT);
-    try {
-      const res = await fetch(`https://${host}/gh/${REPO}@${ref}/${FILE}`, { signal: ctl.signal });
-      if (res.ok) {
-        const code = await res.text();
-        if (code.length > 1000) return { code, host };
-      }
-    } catch {
-      /* 换下一条 */
-    } finally {
-      clearTimeout(timer);
-    }
-    console.warn(`[失眠剧本社] ${host} 没取到，换下一条线路`);
-  }
-  return null;
+/**
+ * 先走第一条线路；STAGGER 毫秒还没下完就加开下一条，哪条先把整个文件下完用哪条，其余取消。
+ * 某条线路卡住不动时最多多等几秒，不会两份都执行（只 import 一次）
+ */
+function download(ref) {
+  return new Promise(resolve => {
+    const ctls = [];
+    let left = HOSTS.length;
+    let done = false;
+    const fail = () => {
+      if (--left === 0 && !done) resolve(null);
+    };
+    HOSTS.forEach((host, i) => {
+      setTimeout(async () => {
+        if (done) return fail();
+        const ctl = new AbortController();
+        ctls.push(ctl);
+        try {
+          const res = await fetch(`https://${host}/gh/${REPO}@${ref}/${FILE}`, { signal: ctl.signal });
+          const code = res.ok ? await res.text() : '';
+          if (code.length > 1000 && !done) {
+            done = true;
+            ctls.forEach(c => c !== ctl && c.abort());
+            resolve({ code, host });
+            return;
+          }
+        } catch {
+          /* 换别的线路 */
+        }
+        fail();
+      }, i * STAGGER);
+    });
+  });
 }
 
 const sha = await latestSha();
